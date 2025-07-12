@@ -85,20 +85,41 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
   const saveAllLimits = async () => {
     setSaving(true);
     try {
-      const updates = Object.entries(limits).map(([userId, limit]) => {
-        const cooldown = cooldowns[userId] || 0;
-        return supabase
+      // Create array of update promises
+      const updatePromises = filteredUsers.map(async (user) => {
+        const newLimit = limits[user.id] || user.daily_limit;
+        const newCooldown = cooldowns[user.id] || user.cooldown_minutes || 0;
+        
+        const { error } = await supabase
           .from('users')
           .update({ 
-            daily_limit: limit,
-            cooldown_minutes: cooldown
+            daily_limit: newLimit,
+            cooldown_minutes: newCooldown
           })
-          .eq('id', userId);
+          .eq('id', user.id);
+
+        if (error) {
+          console.error(`Error updating user ${user.username}:`, error);
+          throw error;
+        }
+        
+        return { userId: user.id, success: true };
       });
 
-      await Promise.all(updates);
+      // Wait for all updates to complete
+      const results = await Promise.allSettled(updatePromises);
       
-      toast.success('সকল ইউজারের লিমিট এবং কুলডাউন আপডেট হয়েছে!');
+      // Check if any failed
+      const failed = results.filter(result => result.status === 'rejected');
+      const successful = results.filter(result => result.status === 'fulfilled');
+      
+      if (failed.length > 0) {
+        toast.error(`${failed.length}টি ইউজারের আপডেট ব্যর্থ হয়েছে`);
+        console.error('Failed updates:', failed);
+      } else {
+        toast.success(`সফলভাবে ${successful.length}টি ইউজারের লিমিট এবং কুলডাউন আপডেট হয়েছে!`);
+      }
+      
       setIsOpen(false);
       onUpdate();
     } catch (error) {
@@ -112,16 +133,37 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
   const saveOnlyLimits = async () => {
     setSaving(true);
     try {
-      const updates = Object.entries(limits).map(([userId, limit]) => 
-        supabase
+      // Create array of update promises
+      const updatePromises = filteredUsers.map(async (user) => {
+        const newLimit = limits[user.id] || user.daily_limit;
+        
+        const { error } = await supabase
           .from('users')
-          .update({ daily_limit: limit })
-          .eq('id', userId)
-      );
+          .update({ daily_limit: newLimit })
+          .eq('id', user.id);
 
-      await Promise.all(updates);
+        if (error) {
+          console.error(`Error updating user ${user.username}:`, error);
+          throw error;
+        }
+        
+        return { userId: user.id, success: true };
+      });
+
+      // Wait for all updates to complete
+      const results = await Promise.allSettled(updatePromises);
       
-      toast.success('সকল ইউজারের লিমিট আপডেট হয়েছে!');
+      // Check if any failed
+      const failed = results.filter(result => result.status === 'rejected');
+      const successful = results.filter(result => result.status === 'fulfilled');
+      
+      if (failed.length > 0) {
+        toast.error(`${failed.length}টি ইউজারের আপডেট ব্যর্থ হয়েছে`);
+        console.error('Failed updates:', failed);
+      } else {
+        toast.success(`সফলভাবে ${successful.length}টি ইউজারের লিমিট আপডেট হয়েছে!`);
+      }
+      
       setIsOpen(false);
       onUpdate();
     } catch (error) {
@@ -168,7 +210,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
               </div>
             </div>
 
-            {/* Content */}
+            {/* Global Settings */}
             <div className="p-6 border-b bg-gray-50">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">সবার জন্য একই সেটিংস</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -207,6 +249,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
               </div>
             </div>
 
+            {/* Individual User Settings */}
             <div className="p-6 max-h-[60vh] overflow-y-auto">
               <div className="grid gap-4">
                 {filteredUsers.map((user) => (
@@ -233,39 +276,44 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
                       </div>
                     </div>
 
-                    {/* Preset Buttons */}
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {presetLimits.map((preset) => (
-                        <button
-                          key={preset}
-                          onClick={() => setPresetLimit(user.id, preset)}
-                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                            limits[user.id] === preset
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
-                        >
-                          {preset}
-                        </button>
-                      ))}
+                    {/* Preset Buttons for Limits */}
+                    <div className="mb-3">
+                      <span className="text-xs text-gray-600 block mb-2">লিমিট প্রিসেট:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {presetLimits.map((preset) => (
+                          <button
+                            key={preset}
+                            onClick={() => setPresetLimit(user.id, preset)}
+                            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                              limits[user.id] === preset
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
-                    {/* Cooldown Preset Buttons */}
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      <span className="text-xs text-gray-600 w-full mb-1">কুলডাউন প্রিসেট (ঘন্টা):</span>
-                      {presetCooldowns.map((preset) => (
-                        <button
-                          key={preset}
-                          onClick={() => setPresetCooldown(user.id, preset)}
-                          className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
-                            cooldowns[user.id] === preset
-                              ? 'bg-purple-600 text-white'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
-                        >
-                          {preset}ঘ
-                        </button>
-                      ))}
+                    {/* Preset Buttons for Cooldowns */}
+                    <div className="mb-3">
+                      <span className="text-xs text-gray-600 block mb-2">কুলডাউন প্রিসেট (ঘন্টা):</span>
+                      <div className="flex flex-wrap gap-2">
+                        {presetCooldowns.map((preset) => (
+                          <button
+                            key={preset}
+                            onClick={() => setPresetCooldown(user.id, preset)}
+                            className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
+                              cooldowns[user.id] === preset
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            {preset}ঘ
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     {/* Manual Controls */}
