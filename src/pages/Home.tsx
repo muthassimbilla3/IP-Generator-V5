@@ -80,7 +80,7 @@ export const Home: React.FC = () => {
     if (!user) return;
 
     const now = new Date();
-    const nextGeneration = new Date(now.getTime() + user.cooldown_minutes * 60 * 1000);
+    const nextGeneration = new Date(now.getTime() + user.cooldown_minutes * 60 * 60 * 1000); // Convert hours to milliseconds
 
     try {
       const { error } = await supabase

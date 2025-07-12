@@ -17,7 +17,7 @@ export type User = {
   daily_limit: number;
   is_active: boolean;
   created_at: string;
-  cooldown_minutes: number;
+  cooldown_minutes: number; // Actually stores hours now
   last_generation_at?: string;
   next_generation_at?: string;
 };

@@ -563,7 +563,7 @@ export const Admin: React.FC = () => {
               />
               <input
                 type="number"
-                placeholder="Cooldown (minutes)"
+                placeholder="Cooldown (ঘন্টা)"
                 value={newUser.cooldownMinutes || 0}
                 onChange={(e) => setNewUser({...newUser, cooldownMinutes: parseInt(e.target.value) || 0})}
                 className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -666,7 +666,7 @@ export const Admin: React.FC = () => {
                           className="px-2 py-1 border border-gray-300 rounded text-sm w-20"
                         />
                       ) : (
-                        `${userData.cooldown_minutes || 0}m`
+                        `${userData.cooldown_minutes || 0}ঘ`
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

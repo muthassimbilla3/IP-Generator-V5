@@ -322,7 +322,7 @@ export const Status: React.FC = () => {
                             ? 'bg-orange-100 text-orange-800'
                             : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {stat.user.cooldown_minutes || 0}m
+                          {stat.user.cooldown_minutes || 0}ঘ
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

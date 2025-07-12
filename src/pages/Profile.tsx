@@ -159,7 +159,7 @@ export const Profile: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700">Cooldown Period</label>
               <div className="mt-1 p-3 bg-gray-50 rounded-md">
                 <span className="text-sm">
-                  {user?.cooldown_minutes ? `${user.cooldown_minutes} minutes` : 'No cooldown'}
+                  {user?.cooldown_minutes ? `${user.cooldown_minutes} ঘন্টা` : 'কোনো কুলডাউন নেই'}
                 </span>
               </div>
             </div>

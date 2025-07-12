@@ -133,7 +133,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
   };
 
   const presetLimits = [100, 200, 300, 500, 1000];
-  const presetCooldowns = [0, 5, 10, 15, 30, 60]; // minutes
+  const presetCooldowns = [0, 1, 2, 3, 6, 12, 24]; // hours
 
   if (filteredUsers.length === 0) {
     return null;
@@ -186,7 +186,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    গ্লোবাল কুলডাউন (মিনিট)
+                    গ্লোবাল কুলডাউন (ঘন্টা)
                   </label>
                   <input
                     type="number"
@@ -216,7 +216,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
                         <h3 className="font-semibold text-gray-900">{user.username}</h3>
                         <p className="text-sm text-gray-500">
                           বর্তমান লিমিট: {user.daily_limit} | 
-                          কুলডাউন: {user.cooldown_minutes || 0}মি | স্ট্যাটাস: <span className={user.is_active ? 'text-green-600' : 'text-red-600'}>
+                          কুলডাউন: {user.cooldown_minutes || 0}ঘ | স্ট্যাটাস: <span className={user.is_active ? 'text-green-600' : 'text-red-600'}>
                             {user.is_active ? 'সক্রিয়' : 'নিষ্ক্রিয়'}
                           </span>
                         </p>
@@ -227,7 +227,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
                         </div>
                         <div className="text-xs text-gray-500">নতুন লিমিট</div>
                         <div className="text-lg font-semibold text-purple-600 mt-1">
-                          {cooldowns[user.id] || 0}মি
+                          {cooldowns[user.id] || 0}ঘ
                         </div>
                         <div className="text-xs text-gray-500">কুলডাউন</div>
                       </div>
@@ -252,7 +252,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
 
                     {/* Cooldown Preset Buttons */}
                     <div className="flex flex-wrap gap-2 mb-3">
-                      <span className="text-xs text-gray-600 w-full mb-1">কুলডাউন প্রিসেট (মিনিট):</span>
+                      <span className="text-xs text-gray-600 w-full mb-1">কুলডাউন প্রিসেট (ঘন্টা):</span>
                       {presetCooldowns.map((preset) => (
                         <button
                           key={preset}
@@ -263,7 +263,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
                               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                           }`}
                         >
-                          {preset}মি
+                          {preset}ঘ
                         </button>
                       ))}
                     </div>
@@ -318,7 +318,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
                         <div className="text-xs text-gray-600 mb-2 text-center">কুলডাউন কন্ট্রোল</div>
                         <div className="flex items-center justify-center space-x-2">
                           <button
-                            onClick={() => updateCooldown(user.id, -10)}
+                            onClick={() => updateCooldown(user.id, -6)}
                             className="bg-red-100 text-red-600 hover:bg-red-200 rounded-full p-2 transition-colors"
                           >
                             <Minus className="w-4 h-4" />
@@ -348,7 +348,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
                             <Plus className="w-3 h-3" />
                           </button>
                           <button
-                            onClick={() => updateCooldown(user.id, 10)}
+                            onClick={() => updateCooldown(user.id, 6)}
                             className="bg-green-100 text-green-600 hover:bg-green-200 rounded-full p-2 transition-colors"
                           >
                             <Plus className="w-4 h-4" />
