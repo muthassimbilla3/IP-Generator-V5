@@ -14,13 +14,95 @@ export const Home: React.FC = () => {
   const [usageToday, setUsageToday] = useState(0);
   const [showGenerateAllModal, setShowGenerateAllModal] = useState(false);
   const [availableIPCount, setAvailableIPCount] = useState<number | null>(null);
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+  const [nextGenerationTime, setNextGenerationTime] = useState<Date | null>(null);
 
   useEffect(() => {
     if (user) {
       fetchTodayUsage();
+      checkCooldownStatus();
     }
   }, [user]);
 
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (cooldownRemaining > 0) {
+      interval = setInterval(() => {
+        setCooldownRemaining(prev => {
+          if (prev <= 1) {
+            setNextGenerationTime(null);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [cooldownRemaining]);
+
+  const checkCooldownStatus = () => {
+    if (!user || !user.next_generation_at) {
+      setCooldownRemaining(0);
+      setNextGenerationTime(null);
+      return;
+    }
+
+    const nextTime = new Date(user.next_generation_at);
+    const now = new Date();
+    const remainingMs = nextTime.getTime() - now.getTime();
+
+    if (remainingMs > 0) {
+      setCooldownRemaining(Math.ceil(remainingMs / 1000));
+      setNextGenerationTime(nextTime);
+    } else {
+      setCooldownRemaining(0);
+      setNextGenerationTime(null);
+    }
+  };
+
+  const formatCooldownTime = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hours > 0) {
+      return `${hours}ঘ ${minutes}মি ${secs}সে`;
+    } else if (minutes > 0) {
+      return `${minutes}মি ${secs}সে`;
+    } else {
+      return `${secs}সে`;
+    }
+  };
+
+  const updateUserGenerationTime = async () => {
+    if (!user) return;
+
+    const now = new Date();
+    const nextGeneration = new Date(now.getTime() + user.cooldown_minutes * 60 * 1000);
+
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          last_generation_at: now.toISOString(),
+          next_generation_at: nextGeneration.toISOString()
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      // Update local user state
+      if (user) {
+        user.last_generation_at = now.toISOString();
+        user.next_generation_at = nextGeneration.toISOString();
+        checkCooldownStatus();
+      }
+    } catch (error) {
+      console.error('Error updating generation time:', error);
+    }
+  };
   const fetchTodayUsage = async () => {
     if (!user) return;
 
@@ -68,6 +150,10 @@ export const Home: React.FC = () => {
   const generateProxies = async () => {
     if (!user) return;
     if (!validateAmount(amount)) return;
+    if (cooldownRemaining > 0) {
+      toast.error(`আপনি আরো ${formatCooldownTime(cooldownRemaining)} পর IP জেনারেট করতে পারবেন`);
+      return;
+    }
 
     setLoading(true);
     try {
@@ -101,6 +187,7 @@ export const Home: React.FC = () => {
       }
 
       setProxies(updatedProxies.slice(0, amount));
+      await updateUserGenerationTime();
       toast.success(`${amount} IPs generated successfully`);
     } catch (error) {
       toast.error('Error generating IPs');
@@ -137,6 +224,10 @@ export const Home: React.FC = () => {
 
   const generateAllRemainingProxies = async () => {
     if (!user || remainingLimit <= 0) return;
+    if (cooldownRemaining > 0) {
+      toast.error(`আপনি আরো ${formatCooldownTime(cooldownRemaining)} পর IP জেনারেট করতে পারবেন`);
+      return;
+    }
     
     setLoadingAll(true);
     try {
@@ -182,6 +273,7 @@ export const Home: React.FC = () => {
       }
 
       setProxies(updatedProxies);
+      await updateUserGenerationTime();
       toast.success(`${updatedProxies.length} IPs generated successfully`);
     } catch (error) {
       toast.error('Error generating IPs');
@@ -361,7 +453,7 @@ export const Home: React.FC = () => {
             <div className="pt-6 flex space-x-3">
               <button
                 onClick={generateProxies}
-                disabled={loading || loadingAll || remainingLimit <= 0}
+                disabled={loading || loadingAll || remainingLimit <= 0 || cooldownRemaining > 0}
                 className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? (
@@ -377,7 +469,7 @@ export const Home: React.FC = () => {
               {remainingLimit > 0 && (
                 <button
                   onClick={handleGenerateAllClick}
-                  disabled={loading || loadingAll || remainingLimit <= 0}
+                  disabled={loading || loadingAll || remainingLimit <= 0 || cooldownRemaining > 0}
                   className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
                 >
                   {loadingAll ? (
@@ -395,6 +487,32 @@ export const Home: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Cooldown Warning */}
+          {cooldownRemaining > 0 && (
+            <div className="bg-orange-50 border border-orange-200 rounded-md p-4 mb-6">
+              <div className="flex items-center">
+                <AlertTriangle className="h-5 w-5 text-orange-400 mr-2" />
+                <div>
+                  <p className="text-orange-700 text-sm font-medium">
+                    অপেক্ষা করুন! আপনি আরো <span className="font-bold">{formatCooldownTime(cooldownRemaining)}</span> পর IP জেনারেট করতে পারবেন
+                  </p>
+                  {nextGenerationTime && (
+                    <p className="text-orange-600 text-xs mt-1">
+                      পরবর্তী IP জেনারেশন: {nextGenerationTime.toLocaleString('bn-BD', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                      })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {remainingLimit <= 0 && (
             <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">

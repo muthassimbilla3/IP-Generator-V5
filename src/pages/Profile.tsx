@@ -156,6 +156,31 @@ export const Profile: React.FC = () => {
               </div>
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700">Cooldown Period</label>
+              <div className="mt-1 p-3 bg-gray-50 rounded-md">
+                <span className="text-sm">
+                  {user?.cooldown_minutes ? `${user.cooldown_minutes} minutes` : 'No cooldown'}
+                </span>
+              </div>
+            </div>
+            {user?.next_generation_at && new Date(user.next_generation_at) > new Date() && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Next IP Generation</label>
+                <div className="mt-1 p-3 bg-orange-50 border border-orange-200 rounded-md">
+                  <span className="text-sm text-orange-700">
+                    {new Date(user.next_generation_at).toLocaleString('bn-BD', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit'
+                    })}
+                  </span>
+                </div>
+              </div>
+            )}
+            <div>
               <label className="block text-sm font-medium text-gray-700">Account Created</label>
               <div className="mt-1 p-3 bg-gray-50 rounded-md">
                 <span className="text-sm">
@@ -163,7 +188,23 @@ export const Profile: React.FC = () => {
                 </span>
               </div>
             </div>
-            <div>
+            {user?.last_generation_at && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Last IP Generation</label>
+                <div className="mt-1 p-3 bg-gray-50 rounded-md">
+                  <span className="text-sm">
+                    {new Date(user.last_generation_at).toLocaleString('bn-BD', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700">Status</label>
               <div className="mt-1 p-3 bg-gray-50 rounded-md">
                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
