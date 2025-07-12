@@ -12,6 +12,9 @@ interface QuickLimitSetterProps {
 const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, userRole }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [limits, setLimits] = useState<{ [key: string]: number }>({});
+  const [cooldowns, setCooldowns] = useState<{ [key: string]: number }>({});
+  const [globalLimit, setGlobalLimit] = useState<number>(500);
+  const [globalCooldown, setGlobalCooldown] = useState<number>(0);
   const [saving, setSaving] = useState(false);
 
   // Filter users based on role permissions
@@ -27,10 +30,13 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
   const handleOpen = () => {
     // Initialize limits with current user limits
     const initialLimits: { [key: string]: number } = {};
+    const initialCooldowns: { [key: string]: number } = {};
     filteredUsers.forEach(user => {
       initialLimits[user.id] = user.daily_limit;
+      initialCooldowns[user.id] = user.cooldown_minutes || 0;
     });
     setLimits(initialLimits);
+    setCooldowns(initialCooldowns);
     setIsOpen(true);
   };
 
@@ -48,7 +54,62 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
     }));
   };
 
+  const updateCooldown = (userId: string, change: number) => {
+    setCooldowns(prev => ({
+      ...prev,
+      [userId]: Math.max(0, (prev[userId] || 0) + change)
+    }));
+  };
+
+  const setPresetCooldown = (userId: string, cooldown: number) => {
+    setCooldowns(prev => ({
+      ...prev,
+      [userId]: cooldown
+    }));
+  };
+
+  const applyGlobalSettings = () => {
+    const newLimits: { [key: string]: number } = {};
+    const newCooldowns: { [key: string]: number } = {};
+    
+    filteredUsers.forEach(user => {
+      newLimits[user.id] = globalLimit;
+      newCooldowns[user.id] = globalCooldown;
+    });
+    
+    setLimits(newLimits);
+    setCooldowns(newCooldowns);
+    toast.success('সবার জন্য একই সেটিংস প্রয়োগ করা হয়েছে!');
+  };
+
   const saveAllLimits = async () => {
+    setSaving(true);
+    try {
+      const updates = Object.entries(limits).map(([userId, limit]) => {
+        const cooldown = cooldowns[userId] || 0;
+        return supabase
+          .from('users')
+          .update({ 
+            daily_limit: limit,
+            cooldown_minutes: cooldown
+          })
+          .eq('id', userId);
+      });
+
+      await Promise.all(updates);
+      
+      toast.success('সকল ইউজারের লিমিট এবং কুলডাউন আপডেট হয়েছে!');
+      setIsOpen(false);
+      onUpdate();
+    } catch (error) {
+      toast.error('লিমিট আপডেট করতে সমস্যা হয়েছে');
+      console.error('Error updating limits:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveOnlyLimits = async () => {
     setSaving(true);
     try {
       const updates = Object.entries(limits).map(([userId, limit]) => 
@@ -72,6 +133,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
   };
 
   const presetLimits = [100, 200, 300, 500, 1000];
+  const presetCooldowns = [0, 5, 10, 15, 30, 60]; // minutes
 
   if (filteredUsers.length === 0) {
     return null;
@@ -95,7 +157,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
               <div className="flex justify-between items-center">
                 <div>
                   <h2 className="text-2xl font-bold">দ্রুত লিমিট সেট করুন</h2>
-                  <p className="text-blue-100 mt-1">সকল ইউজারের দৈনিক লিমিট একসাথে সেট করুন</p>
+                  <p className="text-blue-100 mt-1">সকল ইউজারের দৈনিক লিমিট এবং কুলডাউন একসাথে সেট করুন</p>
                 </div>
                 <button
                   onClick={() => setIsOpen(false)}
@@ -107,6 +169,44 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
             </div>
 
             {/* Content */}
+            <div className="p-6 border-b bg-gray-50">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">সবার জন্য একই সেটিংস</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    গ্লোবাল লিমিট
+                  </label>
+                  <input
+                    type="number"
+                    value={globalLimit}
+                    onChange={(e) => setGlobalLimit(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    গ্লোবাল কুলডাউন (মিনিট)
+                  </label>
+                  <input
+                    type="number"
+                    value={globalCooldown}
+                    onChange={(e) => setGlobalCooldown(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    min="0"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={applyGlobalSettings}
+                    className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                  >
+                    সবার জন্য প্রয়োগ করুন
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div className="p-6 max-h-[60vh] overflow-y-auto">
               <div className="grid gap-4">
                 {filteredUsers.map((user) => (
@@ -116,7 +216,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
                         <h3 className="font-semibold text-gray-900">{user.username}</h3>
                         <p className="text-sm text-gray-500">
                           বর্তমান লিমিট: {user.daily_limit} | 
-                          স্ট্যাটাস: <span className={user.is_active ? 'text-green-600' : 'text-red-600'}>
+                          কুলডাউন: {user.cooldown_minutes || 0}মি | স্ট্যাটাস: <span className={user.is_active ? 'text-green-600' : 'text-red-600'}>
                             {user.is_active ? 'সক্রিয়' : 'নিষ্ক্রিয়'}
                           </span>
                         </p>
@@ -126,6 +226,10 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
                           {limits[user.id] || 0}
                         </div>
                         <div className="text-xs text-gray-500">নতুন লিমিট</div>
+                        <div className="text-lg font-semibold text-purple-600 mt-1">
+                          {cooldowns[user.id] || 0}মি
+                        </div>
+                        <div className="text-xs text-gray-500">কুলডাউন</div>
                       </div>
                     </div>
 
@@ -146,44 +250,111 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
                       ))}
                     </div>
 
+                    {/* Cooldown Preset Buttons */}
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <span className="text-xs text-gray-600 w-full mb-1">কুলডাউন প্রিসেট (মিনিট):</span>
+                      {presetCooldowns.map((preset) => (
+                        <button
+                          key={preset}
+                          onClick={() => setPresetCooldown(user.id, preset)}
+                          className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
+                            cooldowns[user.id] === preset
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          {preset}মি
+                        </button>
+                      ))}
+                    </div>
+
                     {/* Manual Controls */}
-                    <div className="flex items-center justify-center space-x-4">
-                      <button
-                        onClick={() => updateLimit(user.id, -50)}
-                        className="bg-red-100 text-red-600 hover:bg-red-200 rounded-full p-2 transition-colors"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => updateLimit(user.id, -10)}
-                        className="bg-orange-100 text-orange-600 hover:bg-orange-200 rounded-full p-1 transition-colors"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      
-                      <input
-                        type="number"
-                        value={limits[user.id] || 0}
-                        onChange={(e) => setLimits(prev => ({
-                          ...prev,
-                          [user.id]: Math.max(0, parseInt(e.target.value) || 0)
-                        }))}
-                        className="w-20 text-center border border-gray-300 rounded-lg px-2 py-1 font-semibold"
-                        min="0"
-                      />
-                      
-                      <button
-                        onClick={() => updateLimit(user.id, 10)}
-                        className="bg-green-100 text-green-600 hover:bg-green-200 rounded-full p-1 transition-colors"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={() => updateLimit(user.id, 50)}
-                        className="bg-green-100 text-green-600 hover:bg-green-200 rounded-full p-2 transition-colors"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Limit Controls */}
+                      <div>
+                        <div className="text-xs text-gray-600 mb-2 text-center">লিমিট কন্ট্রোল</div>
+                        <div className="flex items-center justify-center space-x-2">
+                          <button
+                            onClick={() => updateLimit(user.id, -50)}
+                            className="bg-red-100 text-red-600 hover:bg-red-200 rounded-full p-2 transition-colors"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => updateLimit(user.id, -10)}
+                            className="bg-orange-100 text-orange-600 hover:bg-orange-200 rounded-full p-1 transition-colors"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          
+                          <input
+                            type="number"
+                            value={limits[user.id] || 0}
+                            onChange={(e) => setLimits(prev => ({
+                              ...prev,
+                              [user.id]: Math.max(0, parseInt(e.target.value) || 0)
+                            }))}
+                            className="w-16 text-center border border-gray-300 rounded-lg px-2 py-1 font-semibold text-xs"
+                            min="0"
+                          />
+                          
+                          <button
+                            onClick={() => updateLimit(user.id, 10)}
+                            className="bg-green-100 text-green-600 hover:bg-green-200 rounded-full p-1 transition-colors"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => updateLimit(user.id, 50)}
+                            className="bg-green-100 text-green-600 hover:bg-green-200 rounded-full p-2 transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Cooldown Controls */}
+                      <div>
+                        <div className="text-xs text-gray-600 mb-2 text-center">কুলডাউন কন্ট্রোল</div>
+                        <div className="flex items-center justify-center space-x-2">
+                          <button
+                            onClick={() => updateCooldown(user.id, -10)}
+                            className="bg-red-100 text-red-600 hover:bg-red-200 rounded-full p-2 transition-colors"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => updateCooldown(user.id, -1)}
+                            className="bg-orange-100 text-orange-600 hover:bg-orange-200 rounded-full p-1 transition-colors"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          
+                          <input
+                            type="number"
+                            value={cooldowns[user.id] || 0}
+                            onChange={(e) => setCooldowns(prev => ({
+                              ...prev,
+                              [user.id]: Math.max(0, parseInt(e.target.value) || 0)
+                            }))}
+                            className="w-16 text-center border border-gray-300 rounded-lg px-2 py-1 font-semibold text-xs"
+                            min="0"
+                          />
+                          
+                          <button
+                            onClick={() => updateCooldown(user.id, 1)}
+                            className="bg-green-100 text-green-600 hover:bg-green-200 rounded-full p-1 transition-colors"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => updateCooldown(user.id, 10)}
+                            className="bg-green-100 text-green-600 hover:bg-green-200 rounded-full p-2 transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -199,6 +370,23 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
                 বাতিল করুন
               </button>
               <button
+                onClick={saveOnlyLimits}
+                disabled={saving}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-300 flex items-center space-x-2 disabled:opacity-50"
+              >
+                {saving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>সেভ করা হচ্ছে...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>শুধু লিমিট সেভ করুন</span>
+                  </>
+                )}
+              </button>
+              <button
                 onClick={saveAllLimits}
                 disabled={saving}
                 className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 flex items-center space-x-2 disabled:opacity-50"
@@ -211,7 +399,7 @@ const QuickLimitSetter: React.FC<QuickLimitSetterProps> = ({ users, onUpdate, us
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    <span>সকল লিমিট সেভ করুন</span>
+                    <span>সব সেভ করুন</span>
                   </>
                 )}
               </button>
